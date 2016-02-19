@@ -188,6 +188,9 @@ def remove_duplicates_from_list_of_dicts(ld):
 
     return result
 
+def has_numbers(text):
+    """Detects if a string contains numbers"""
+    return any(char.isdigit() for char in text)
 
 def split_fullname(author, surname_first=True):
     """Split an author name to surname and given names.
@@ -199,6 +202,13 @@ def split_fullname(author, surname_first=True):
     if not author:
         return "", ""
 
+    if has_numbers(author):
+        # Remove artifacts from superscript commands
+        author = "".join(
+            [char for char in author if not char.isdigit() and char != "@"]
+            ).replace("bullet", "")
+
+    author = author.strip("' ")
     if "," in author:
         fullname = [n.strip() for n in author.split(',')]
     else:
