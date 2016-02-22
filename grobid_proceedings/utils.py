@@ -201,6 +201,9 @@ def split_fullname(author, surname_first=True):
     """
     if not author:
         return "", ""
+    
+    if "collaboration" in author.lower():
+        return author, ""
 
     if has_numbers(author):
         # Remove artifacts from superscript commands

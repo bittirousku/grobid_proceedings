@@ -174,10 +174,12 @@ def write_xml(filename, cnum, marcxml):
         print(marcxml, file=xfile)
 
 def get_authors(aut):
-    """Get author name and affiliation. Format the name 'lastname, firstname'."""
+    """Get author name and affiliation. Format: 'lastname, firstname'."""
     author_name = ''
     surname = ''
     surname, given_names = utils.split_fullname(aut.get("name"), surname_first=False)
+    if surname and "collaboration" in surname.lower():
+        author_name = surname 
     if surname and given_names:
         if len(given_names) == 1:  # Handle initials
             given_names += "."
@@ -194,14 +196,13 @@ def get_authors(aut):
 
 
 
-def build_marc_xml(input_dir):
-    """Build a MARCXML file from a HEPRecord dictionary."""
+def build_marc_xml(input_dir, pubdate):
+    """Build a MARCXML file from the HEPRecord dictionary."""
     counter = 0
     for dic in build_dicts(input_dir):
         marcdict = {}
         authors_raw = dic.get("authors")
         authors = []
-        #import ipdb; ipdb.set_trace()
         if authors_raw:
             # delete authors which have empty values:
             for author in authors_raw:
@@ -213,8 +214,6 @@ def build_marc_xml(input_dir):
             marcdict["700"] = []
             # Only the first author should be put in the 100 field, others to 700
             author_name, affiliations = get_authors(authors[0])
-            # 129: Gruenberg, O. (ei löydä sitä ollenkaan, eli pitäisi olla tyhjä
-            # 133: Guttman, Nir
             if not author_name:
                 # "If you have a separate field for the affiliation it should always be 700 and no subfield $$a."
                 marcdict["700"].append({"v":affiliations})
@@ -228,7 +227,8 @@ def build_marc_xml(input_dir):
         title = dic.get("title")
         if title:
             marcdict["245"] = {"a": title.title()}
-        #marcdict["260"] = pub_date  # FIXME: how to get the publication date? It's not the same as the year of the conference.
+        if pubdate:
+            marcdict["260"] = {"c": pubdate}
         abstract = dic.get("abstract")
         if abstract:
             marcdict["520"] = {"a": abstract}
@@ -264,11 +264,13 @@ def build_marc_xml(input_dir):
 def main(argv):
     """Main function."""
     input_dir = ''
-    #outputfile = ''
-    helptext = "Usage: python grobid_proceedings.py -i <input_dir> \n"\
-        "<input_dir> is the CNUM of the conference, e.g. `C12-03-10`"
+    pubdate = ''
+    helptext = ("Usage: python grobid_proceedings.py -i <input_dir> -d <pubdate>\n"
+        "<input_dir> is the CNUM of the conference, e.g. `C12-03-10`\n\v"
+        "Pubdate has to be manually inserted, because the pdfs contain no "
+        "information about that.")
     try:
-        opts, args = getopt.getopt(argv, "hi:o:", ["ifile=", "ofile="])
+        opts, args = getopt.getopt(argv, "hi:p:", ["ifile=", "pubdate="])
     except getopt.GetoptError:
         print(helptext)
         sys.exit(2)
@@ -278,6 +280,8 @@ def main(argv):
             sys.exit()
         elif opt in ("-i", "--ifile"):
             input_dir = arg
+        elif opt in ("-p", "--pubdate"):
+            pubdate = arg
         #elif opt in ("-o", "--ofile"):
             #outputfile = arg
 
@@ -285,7 +289,7 @@ def main(argv):
         #input_dir = "/afs/cern.ch/project/inspire/uploads/library/moriond/for_grobid/" + input_dir
         if os.path.exists(input_dir):
             print('Processing directory (CNUM)"', input_dir + '"')
-            build_marc_xml(input_dir)
+            build_marc_xml(input_dir, pubdate)
         else:
             print("Path `"+ input_dir +"` doesn't exist!")
     else:
