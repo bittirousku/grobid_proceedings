@@ -192,6 +192,21 @@ def has_numbers(text):
     """Detects if a string contains numbers"""
     return any(char.isdigit() for char in text)
 
+def handle_initials(given_names):
+    """Adds a dot after every initial."""
+    split_names = given_names.split()
+    if split_names > 1:
+        initials = []
+        split_names = [i.strip(".") for i in split_names]
+        for name in split_names:
+            if len(name) == 1:
+                initials.append(name + ".")
+            else:
+                initials.append(name)
+        return " ".join(initials)
+    else:
+        return given_names
+
 def split_fullname(author, surname_first=True):
     """Split an author name to surname and given names.
 
@@ -201,7 +216,7 @@ def split_fullname(author, surname_first=True):
     """
     if not author:
         return "", ""
-    
+
     if "collaboration" in author.lower():
         return author, ""
 
@@ -223,5 +238,8 @@ def split_fullname(author, surname_first=True):
     else:
         surname = fullname[-1]
         given_names = " ".join(fullname[:-1])
+
+    given_names = handle_initials(given_names)
+
 
     return surname, given_names

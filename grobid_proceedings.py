@@ -102,6 +102,8 @@ def parse_filename(pdf_file):
         search_result = file_pattern.search(pdf_file)
         if search_result:
             logger.info('Recognised ' + pattern_name)
+            logger.info(
+                "cnum: " + search_result.group(1) + " fpage:" + search_result.group(2))
             return search_result.groups()
     logger.warning('No known pattern for ' + pdf_file)
 
