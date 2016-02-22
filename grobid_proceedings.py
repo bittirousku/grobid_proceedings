@@ -30,7 +30,9 @@ How it works:
    and print the dictionary to a MARCXML file (`build_marc_xml`).
 
 
-USAGE EXAMPLE: $ python grobid_proceedings.py -i test/
+USAGE EXAMPLES: 
+$ python grobid_proceedings.py -i test/
+$ python grobid_proceedings.py -i /afs/cern.ch/project/inspire/uploads/library/moriond/for_grobid/C12-03-10 -p 2012
 
 """
 
@@ -166,14 +168,23 @@ def write_jsons(dic):
         print(jsondic, file=jfile)
 
 
-def write_xml(filename, cnum, marcxml):
+def write_xml(filename, cnum, marcxml, separate=True):
     """Write MARCXML to a file."""
     target_folder = "tmp/marc_records/" + cnum + "/"
     if not os.path.exists(target_folder):
         os.makedirs(target_folder)
-
-    with open(target_folder + filename, "w") as xfile:
-        print(marcxml, file=xfile)
+    
+    
+    if separate:
+        with open(target_folder + filename, "w") as xfile:
+            print(marcxml, file=xfile)
+    else:
+        target_folder = "tmp/marc_records/"
+        if os.path.exists(target_folder + filename):
+            os.remove(target_folder + filename)
+        for mc in marcxml:
+            with open(target_folder + filename, "a+") as xfile:
+                print(mc, file=xfile, end='')
 
 def get_authors(aut):
     """Get author name and affiliation. Format: 'lastname, firstname'."""
@@ -185,7 +196,8 @@ def get_authors(aut):
     if surname and given_names:
         if len(given_names) == 1:  # Handle initials
             given_names += "."
-        author_name = u"{}, {}".format(surname, given_names)
+        #author_name = u"{}, {}".format(surname, given_names)  # NOTE: this doesn't work with python 2.6
+        author_name = surname + ", " + given_names
     elif surname:
         author_name = surname
     affiliations = []
@@ -198,9 +210,10 @@ def get_authors(aut):
 
 
 
-def build_marc_xml(input_dir, pubdate):
+def build_marc_xml(input_dir, pubdate, separate=True):
     """Build a MARCXML file from the HEPRecord dictionary."""
     counter = 0
+    all_records = []
     for dic in build_dicts(input_dir):
         marcdict = {}
         authors_raw = dic.get("authors")
@@ -258,16 +271,28 @@ def build_marc_xml(input_dir, pubdate):
         filename = dic["cnum"] + "_" + dic["fpage"] + ".xml"
         print(marcdict["FFT"]["a"])
         print(marcxml)
-        write_xml(filename, dic["cnum"], marcxml)
+        if separate:
+            # Write individual files
+            write_xml(filename, dic["cnum"], marcxml)
+        else:
+            # Append to list
+            all_records.append(marcxml)
         counter += 1
-    logger.info("Wrote " + str(counter) + " records.")
+
+    if separate:
+        logger.info("Wrote " + str(counter) + " records to directory tmp/marc_records/" + dic["cnum"] + "/")
+    else:
+        # Write one big file for the whole cnum
+        filename = dic["cnum"]+".xml"
+        write_xml(filename, dic["cnum"], all_records, separate=False)
+        logger.info("Wrote " + str(counter) + " records to file tmp/marc_records/" + filename)
 
 
 def main(argv):
     """Main function."""
     input_dir = ''
     pubdate = ''
-    helptext = ("Usage: python grobid_proceedings.py -i <input_dir> -d <pubdate>\n"
+    helptext = ("Usage: python grobid_proceedings.py -i <input_dir> -p <pubdate>\n"
         "<input_dir> is the CNUM of the conference, e.g. `C12-03-10`\n\v"
         "Pubdate has to be manually inserted, because the pdfs contain no "
         "information about that.")
@@ -284,14 +309,14 @@ def main(argv):
             input_dir = arg
         elif opt in ("-p", "--pubdate"):
             pubdate = arg
-        #elif opt in ("-o", "--ofile"):
-            #outputfile = arg
 
     if input_dir:
         #input_dir = "/afs/cern.ch/project/inspire/uploads/library/moriond/for_grobid/" + input_dir
         if os.path.exists(input_dir):
             print('Processing directory (CNUM)"', input_dir + '"')
-            build_marc_xml(input_dir, pubdate)
+            # With the argument `separate`, you can specify if the output should
+            # be one record per file or all records in one file.
+            build_marc_xml(input_dir, pubdate, separate=False)
         else:
             print("Path `"+ input_dir +"` doesn't exist!")
     else:
