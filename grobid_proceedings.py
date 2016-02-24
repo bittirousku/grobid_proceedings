@@ -97,14 +97,16 @@ formatter = logging.Formatter('%(asctime)-12s: %(levelname)-5s %(message)s')
 console.setFormatter(formatter)
 logging.getLogger('').addHandler(console)
 
+grobid_likes_not = []
 
 def parse_filename(pdf_file):
     """Get cnum and page numbers from pdf filename."""
+    logger.info("Input file: " + pdf_file)
     for (pattern_name, file_pattern, fields) in FILE_SEARCH_PATTERN:
         search_result = file_pattern.search(pdf_file)
         if search_result:
-            logger.info('Recognised ' + pattern_name)
-            logger.info(
+            logger.debug('Recognised ' + pattern_name)
+            logger.debug(
                 "cnum: " + search_result.group(1) + " fpage:" + search_result.group(2))
             return search_result.groups()
     logger.warning('No known pattern for ' + pdf_file)
@@ -124,6 +126,11 @@ def process_pdf_stream(pdf_file):
 
     if response.status_code == 200:
         return response.text
+    else:
+        logger.warning(
+            "Grobid server error, status code: %i. Problematic file: %s"  % (response.status_code, pdf_file))
+        grobid_likes_not.append(pdf_file)
+        return None
 
 def process_pdf_dir(input_dir):
     """Process the entire directory, but take only pdf files.
@@ -147,13 +154,15 @@ def process_pdf_dir(input_dir):
 def build_dicts(input_dir):
     """Create dictionaries from the TEI XML data."""
     for processed_pdf in process_pdf_dir(input_dir):
+        rec_dict = {}
         pdf_path, (cnum, fpage), tei = processed_pdf
-        rec_dict = mapping.tei_to_dict(tei)  # NOTE: this includes some empty elements, which is not cool
+        if tei:
+            rec_dict = mapping.tei_to_dict(tei)  # NOTE: this includes some empty elements, which is not cool
+        # NOTE: create a record even if pdf could not be grobided
         rec_dict["pdf_path"] = pdf_path
         rec_dict["cnum"] = cnum
         rec_dict["fpage"] = fpage
-        yield rec_dict
-
+        yield (rec_dict, cnum)
 
 def write_jsons(dic):
     """Write json files. For testing."""
@@ -219,7 +228,14 @@ def build_marc_xml(input_dir, pubdate, separate=True):
     """Build a MARCXML file from the HEPRecord dictionary."""
     counter = 0
     all_records = {}
-    for dic in build_dicts(input_dir):
+    cnum = ''
+    
+    for bd in build_dicts(input_dir):
+        dic, cnum = bd
+        if not dic:
+            # This is actually unneeded, but let it stay here for the moment
+            continue
+
         marcdict = {}
         authors_raw = dic.get("authors")
         authors = []
@@ -272,24 +288,27 @@ def build_marc_xml(input_dir, pubdate, separate=True):
             #marcdict["999C5"].append({"s":pubnote, "y":year})
 
         marcxml = utils.legacy_export_as_marc(marcdict)
-        filename = dic["cnum"] + "_" + dic["fpage"] + ".xml"
+        filename = cnum + "_" + dic["fpage"] + ".xml"
         print(marcdict["FFT"]["a"])
         print(marcxml)
         if separate:
             # Write individual files
-            write_xml(filename, dic["cnum"], marcxml)
+            write_xml(filename, cnum, marcxml)
         else:
             # Append to dict
             all_records[int(dic["fpage"])] = marcxml
         counter += 1
 
     if separate:
-        logger.info("Wrote " + str(counter) + " records to directory tmp/marc_records/" + dic["cnum"] + "/")
+        logger.info("Wrote " + str(counter) + " records to directory tmp/marc_records/" + cnum + "/")
     else:
         # Write one big file for the whole cnum
-        filename = dic["cnum"]+".xml"
-        write_xml(filename, dic["cnum"], all_records, separate=False)
+        filename = cnum+".xml"
+        write_xml(filename, cnum, all_records, separate=False)
+        print("\v\vFinished processing...")
         logger.info("Wrote " + str(counter) + " records to file tmp/marc_records/" + filename)
+        if grobid_likes_not:
+            logger.warning("Following pdfs were not processed: " + ", ".join(grobid_likes_not))
 
 
 def main(argv):
