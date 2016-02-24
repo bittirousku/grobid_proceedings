@@ -131,13 +131,13 @@ def process_pdf_dir(input_dir):
     Return cnum, first page, and XML (parsed pdf) in Grobid TEI format.
     """
     paths = []
-    filenames = []
+    pdf_files = []
     for root, dirnames, filenames in os.walk(input_dir):
         for filename in fnmatch.filter(filenames, '*.pdf'):
             paths.append(os.path.join(root, filename))
-            filenames.append(filename)
+            pdf_files.append(filename)
 
-    for filename, pdf_path in zip(filenames, paths):
+    for filename, pdf_path in zip(pdf_files, paths):
         yield (
             os.path.abspath(pdf_path),
             parse_filename(filename),
@@ -152,7 +152,6 @@ def build_dicts(input_dir):
         rec_dict["pdf_path"] = pdf_path
         rec_dict["cnum"] = cnum
         rec_dict["fpage"] = fpage
-        #import ipdb; ipdb.set_trace()
         yield rec_dict
 
 
@@ -170,19 +169,23 @@ def write_jsons(dic):
 
 def write_xml(filename, cnum, marcxml, separate=True):
     """Write MARCXML to a file."""
-    target_folder = "tmp/marc_records/" + cnum + "/"
-    if not os.path.exists(target_folder):
-        os.makedirs(target_folder)
-    
-    
     if separate:
+        target_folder = "tmp/marc_records/" + cnum + "/"
+        if not os.path.exists(target_folder):
+            os.makedirs(target_folder)
         with open(target_folder + filename, "w") as xfile:
             print(marcxml, file=xfile)
     else:
+        # Here we should order these by the fpage number (key)
+        sorted_marcxml = [value for (key, value) in sorted(marcxml.items())]
+        # Create output directory, but remove old files ones with the same name:
         target_folder = "tmp/marc_records/"
         if os.path.exists(target_folder + filename):
             os.remove(target_folder + filename)
-        for mc in marcxml:
+        if not os.path.exists(target_folder):
+            os.makedirs(target_folder)
+        # Go though every record:
+        for mc in sorted_marcxml:
             with open(target_folder + filename, "a+") as xfile:
                 print(mc, file=xfile, end='')
 
@@ -210,10 +213,12 @@ def get_authors(aut):
 
 
 
+
+
 def build_marc_xml(input_dir, pubdate, separate=True):
     """Build a MARCXML file from the HEPRecord dictionary."""
     counter = 0
-    all_records = []
+    all_records = {}
     for dic in build_dicts(input_dir):
         marcdict = {}
         authors_raw = dic.get("authors")
@@ -260,7 +265,6 @@ def build_marc_xml(input_dir, pubdate, separate=True):
         #for ref in dic["references"]:
             #authors = ", ".join([aut["name"] for aut in ref["authors"]])
             #title = ref["journal_pubnote"].get("journal_title", "")
-             ## See above, should the section be here?
             #volume = ref["journal_pubnote"].get("journal_volume", "")
             #pages = ref["journal_pubnote"].get("page_range", "")
             #year = ref["journal_pubnote"].get("year", "")
@@ -275,8 +279,8 @@ def build_marc_xml(input_dir, pubdate, separate=True):
             # Write individual files
             write_xml(filename, dic["cnum"], marcxml)
         else:
-            # Append to list
-            all_records.append(marcxml)
+            # Append to dict
+            all_records[int(dic["fpage"])] = marcxml
         counter += 1
 
     if separate:
