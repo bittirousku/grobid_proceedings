@@ -74,10 +74,14 @@ FILE_SEARCH_PATTERN = [
     ('cnum and page range with prefix but take only start page with optional dot',
      re.compile(r'^Pages_from_(C\d\d-\d\d-\d\d?.?\d)[-_](\d+)\-\d+\.pdfa?$'),
      ('773__w', '773__c')),
-    # Example: C73-03-04_Proceedings.pdf
-    ('cnum with Proceedings suffixed with optional dot',
-     re.compile(r'^(C\d\d-\d\d-\d\d?.?\d)[-_](Proceedings).pdfa?$'),
-     ('773__w', '980__a')),
+    ## Example: C73-03-04_Proceedings.pdf
+    #('cnum with Proceedings suffixed with optional dot',
+     #re.compile(r'^(C\d\d-\d\d-\d\d?.?\d)[-_](Proceedings).pdfa?$'),
+     #('773__w', '980__a')),
+    ## Example: C73-03-04.pdf, this is also the Proceedings file
+    #('cnum with Proceedings suffixed with optional dot',
+     #re.compile(r'^(C\d\d-\d\d-\d\d?.?\d).pdfa?$'),
+     #('773__w', '980__a')),
     # Example: anything.pdf
     ('garbage',
      re.compile(r'(?i)^(.+)\.pdfa?$'),
@@ -140,7 +144,7 @@ def process_pdf_dir(input_dir):
     paths = []
     pdf_files = []
     for root, dirnames, filenames in os.walk(input_dir):
-        for filename in fnmatch.filter(filenames, '*.pdf'):
+        for filename in fnmatch.filter(filenames, 'Pages_from*.pdf'):
             paths.append(os.path.join(root, filename))
             pdf_files.append(filename)
 
@@ -176,10 +180,10 @@ def write_jsons(dic):
         print(jsondic, file=jfile)
 
 
-def write_xml(filename, cnum, marcxml, separate=True):
+def write_xml(output_dir, filename, cnum, marcxml, separate=True):
     """Write MARCXML to a file."""
     if separate:
-        target_folder = "tmp/marc_records/" + cnum + "/"
+        target_folder = output_dir + "/marc_records/"
         if not os.path.exists(target_folder):
             os.makedirs(target_folder)
         with open(target_folder + filename, "w") as xfile:
@@ -188,7 +192,7 @@ def write_xml(filename, cnum, marcxml, separate=True):
         # Here we should order these by the fpage number (key)
         sorted_marcxml = [value for (key, value) in sorted(marcxml.items())]
         # Create output directory, but remove old files ones with the same name:
-        target_folder = "tmp/marc_records/"
+        target_folder = output_dir + "/marc_records/"
         if os.path.exists(target_folder + filename):
             os.remove(target_folder + filename)
         if not os.path.exists(target_folder):
@@ -293,32 +297,39 @@ def build_marc_xml(input_dir, pubdate, separate=True):
         print(marcxml)
         if separate:
             # Write individual files
-            write_xml(filename, cnum, marcxml)
+            write_xml(input_dir, filename, cnum, marcxml)
         else:
             # Append to dict
             all_records[int(dic["fpage"])] = marcxml
         counter += 1
 
     if separate:
-        logger.info("Wrote " + str(counter) + " records to directory tmp/marc_records/" + cnum + "/")
+        logger.info("Wrote " + str(counter) + " records to " + 
+                    input_dir + "/marc_records/" + cnum + "/")
     else:
         # Write one big file for the whole cnum
         filename = cnum+".xml"
-        write_xml(filename, cnum, all_records, separate=False)
+        write_xml(input_dir, filename, cnum, all_records, separate=False)
         print("\v\vFinished processing...")
-        logger.info("Wrote " + str(counter) + " records to file tmp/marc_records/" + filename)
+        logger.info("Wrote " + str(counter) + " records to " + 
+                    input_dir + "/marc_records/" + filename)
         if grobid_likes_not:
-            logger.warning("Following pdfs were not processed: " + ", ".join(grobid_likes_not))
+            logger.warning("Following pdfs were not processed: " 
+                + ", ".join(grobid_likes_not))
 
 
 def main(argv):
     """Main function."""
     input_dir = ''
     pubdate = ''
-    helptext = ("Usage: python grobid_proceedings.py -i <input_dir> -p <pubdate>\n"
-        "<input_dir> is the CNUM of the conference, e.g. `C12-03-10`\n\v"
-        "Pubdate has to be manually inserted, because the pdfs contain no "
-        "information about that.")
+    helptext = ("\v* Usage: python grobid_proceedings.py -i <input_dir> -p <pubdate>\n\v"
+        "* <input_dir> is the directory where the conference files are, e.g.\n"
+        "  `/afs/cern.ch/project/inspire/uploads/library/moriond/for_grobid/C12-03-10/`\n"
+        "* Pubdate has to be manually inserted, because the pdfs contain no "
+        "information about that.\n"
+        "* Output MARCXML records will be put to the same directory under subdirectory "
+        "`marcxmls/`"
+        )
     try:
         opts, args = getopt.getopt(argv, "hi:p:", ["ifile=", "pubdate="])
     except getopt.GetoptError:
