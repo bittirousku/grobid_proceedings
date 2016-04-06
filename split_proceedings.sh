@@ -7,7 +7,7 @@
 # 45-57
 #
 # Example usage: 
-# ./split_proceedings.sh test/test/C76-02-29_Proceedings.pdf  test/test/pageranges.txt
+# ./split_proceedings.sh test/test/C76-02-29.pdf  test/test/pageranges.txt
 #
 #
 # Output files fill be generated to the same directory where the original file
@@ -28,7 +28,7 @@ PROCEEDINGS_DIR=$(dirname "${PROCEEDINGS}") # dir of the proceedings file
 PROCEEDINGS_FILE=$(basename "${PROCEEDINGS}") # file name of the proceedings
 
 #Get the CNUM out of the filename
-regex='(C.*)_Proceedings.pdf'
+regex='(C.*).*.pdf'
 if [[ $PROCEEDINGS_FILE =~ $regex ]]; then
     CNUM=${BASH_REMATCH[1]}
 fi
