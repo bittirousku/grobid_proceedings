@@ -7,7 +7,7 @@
 # 45-57
 #
 # Example usage: 
-# ./split_proceedings.sh test/test/C76-02-29.pdf  test/test/pageranges.txt
+# ./split_proceedings.sh test/test/C76-02-29_Proceedings.pdf  test/test/pageranges.txt
 #
 #
 # Output files fill be generated to the same directory where the original file
@@ -27,23 +27,33 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"  # current dir
 PROCEEDINGS_DIR=$(dirname "${PROCEEDINGS}") # dir of the proceedings file
 PROCEEDINGS_FILE=$(basename "${PROCEEDINGS}") # file name of the proceedings
 
-#Get the CNUM out of the filename
-regex='(C.*).*.pdf'
+#Get the CNUM out of the filename, it can be like:
+# C16-02-01.pdf
+# C16-02-01.1.pdf
+# C16-02-01.1_Proceedings.pdf
+regex='(C[0-9]{2}-[0-9]{2}-[0-9]{2}?.[0-9]).*.pdf'
 if [[ $PROCEEDINGS_FILE =~ $regex ]]; then
     CNUM=${BASH_REMATCH[1]}
 fi
 
+# Page range files might be created in MS Windows, therefore we
+# should convert the DOS-style CRLF line terminators to Unix line feeds:
+NEWPAGEFILE=$PROCEEDINGS_DIR/pagerange_unix.txt
+perl -lne 's/\r//g; print' $PAGEFILE > $NEWPAGEFILE
+mv $NEWPAGEFILE $PAGEFILE
+#Ensure the pagerange file ends in newline:
+sed -i -e '$a\' $NEWPAGEFILE
+    
 echo Script dir: ${SCRIPT_DIR}
 echo Proceedings dir: ${PROCEEDINGS_DIR}
 
-# Go through the page range list and split the pdf file accordingly
+
+Go through the page range list and split the pdf file accordingly
 if [ -e $args ]; then
     echo Proceedings path: ${PROCEEDINGS}
     echo Page file path:   ${PAGEFILE}
     echo CNUM: ${CNUM}
     echo Splitting conference files...
-    #Ensure the pagerange file ends in newline:
-    sed -i -e '$a\' $PAGEFILE
     #Read the pagenumber file line by line:
     exec < $PAGEFILE
     while read LINE; do
@@ -54,7 +64,7 @@ if [ -e $args ]; then
         fi
         # Create new file:
         outfile=$PROCEEDINGS_DIR/Pages\_from\_$CNUM\_$FPAGE.pdf
-        echo running command: pdftk $PROCEEDINGS cat $LINE output $outfile
+        echo pdftk $PROCEEDINGS cat $LINE output $outfile
         pdftk $PROCEEDINGS cat $LINE output $outfile
     done
 
@@ -63,4 +73,6 @@ else
 fi
 
 
+# pdftk C16-02-01.1_Proceedings.pdf cat 5-10 output Pages_from_C16-02-01.1_5.pdf
+# ./split_proceedings.sh test/C16-02-01.1/C16-02-01.1_Proceedings.pdf test/C16-02-01.1/C16-02-01.1-range-of-pages.txt
 
