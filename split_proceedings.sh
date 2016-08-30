@@ -12,6 +12,10 @@
 #
 # Output files fill be generated to the same directory where the original file
 # resides.
+#
+# For simplifying shell commands:
+# alias moriond="workon grobid_proceedings && cdvirtualenv && cd src/grobid_proceedings"
+
 
 args=("$@")
 
@@ -71,8 +75,3 @@ if [ -e $args ]; then
 else
     echo Files don\'t exists!
 fi
-
-
-# pdftk C16-02-01.1_Proceedings.pdf cat 5-10 output Pages_from_C16-02-01.1_5.pdf
-# ./split_proceedings.sh test/C16-02-01.1/C16-02-01.1_Proceedings.pdf test/C16-02-01.1/C16-02-01.1-range-of-pages.txt
-
